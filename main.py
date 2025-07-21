@@ -17,27 +17,22 @@ except:
 from flask import Flask, request, render_template
 import time
 from bs4 import BeautifulSoup
+from readability import Document
 
 app = Flask(__name__)
 
 def extract_article_content(html):
-    soup = BeautifulSoup(html, "html.parser")
+    try:
+        doc = Document(html)
+        title = doc.short_title()
+        summary_html = doc.summary()
 
-    # Get the title from <title> tag
-    title = soup.title.string.strip() if soup.title else "No Title Found"
-
-    # Try to locate an <article> or similar content-heavy div
-    article = soup.find("article")
-    if not article:
-        article = soup.find("div", class_=lambda c: c and ("article" in c or "content" in c))
-
-    if article:
-        paragraphs = article.find_all(["p", "h2", "h3", "li"])
-        body = "\n\n".join(p.get_text(strip=True) for p in paragraphs)
-    else:
-        body = "❌ Could not extract structured article content."
-
-    return {"title": title, "text": body}
+        # Clean the HTML to plain text
+        soup = BeautifulSoup(summary_html, "html.parser")
+        text = soup.get_text(separator="\n", strip=True)
+        return {"title": title, "text": text}
+    except Exception as e:
+        return {"title": "Error", "text": f"Failed to extract content: {e}"}
 
 def scrape_article(url):
     try:
@@ -47,9 +42,9 @@ def scrape_article(url):
             page = context.new_page()
 
             page.goto(url, timeout=60000)
-            page.wait_for_load_state("networkidle", timeout=10000)
+            page.wait_for_load_state("networkidle", timeout=15000)
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(2)
+            time.sleep(5)  # Ensure lazy-loaded content is fully rendered
 
             html = page.content()
             browser.close()
