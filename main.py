@@ -1,5 +1,5 @@
 # ---------------------------------------
-# 🧩 Force Playwright install on Replit
+# 🧩 Force Playwright install on Replit/Render
 # ---------------------------------------
 import subprocess
 import sys
@@ -16,8 +16,28 @@ except:
 # ---------------------------------------
 from flask import Flask, request, render_template
 import time
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
+
+def extract_article_content(html):
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Get the title from <title> tag
+    title = soup.title.string.strip() if soup.title else "No Title Found"
+
+    # Try to locate an <article> or similar content-heavy div
+    article = soup.find("article")
+    if not article:
+        article = soup.find("div", class_=lambda c: c and ("article" in c or "content" in c))
+
+    if article:
+        paragraphs = article.find_all(["p", "h2", "h3", "li"])
+        body = "\n\n".join(p.get_text(strip=True) for p in paragraphs)
+    else:
+        body = "❌ Could not extract structured article content."
+
+    return {"title": title, "text": body}
 
 def scrape_article(url):
     try:
@@ -31,11 +51,11 @@ def scrape_article(url):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             time.sleep(2)
 
-            title = page.title()
-            content = page.inner_text("body")
+            html = page.content()
             browser.close()
 
-            return {"url": url, "title": title, "text": content}
+            extracted = extract_article_content(html)
+            return {"url": url, "title": extracted["title"], "text": extracted["text"]}
     except Exception as e:
         return {"url": url, "title": "Error", "text": str(e)}
 
